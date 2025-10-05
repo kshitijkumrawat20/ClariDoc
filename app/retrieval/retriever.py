@@ -1,6 +1,6 @@
 
 from langchain.retrievers import EnsembleRetriever
-
+from app.retrieval.reranker import Reranker
 class Retriever:
     def __init__(self, pinecone_index, query = None, metadata = None, namespace=None, vectore_store = None,sparse_retriever = None, llm = None):
         self.pinecone_index = pinecone_index
@@ -12,7 +12,7 @@ class Retriever:
         self.llm = llm  
         self.dense_retriever = self.vector_store.as_retriever(
             search_type="similarity",
-            search_kwargs={"k": 5,"namespace": self.namespace, "filter": self.metadata}
+            search_kwargs={"k": 10,"namespace": self.namespace, "filter": self.metadata}
         )
         self.hybrid_retriever = EnsembleRetriever(
             retrievers=[self.dense_retriever, sparse_retriever],  # Use .retriever attribute
@@ -31,7 +31,7 @@ class Retriever:
             filter_meta: Optional metadata filter dict.
         
         Returns:
-            List of ClauseHit objects (lightweight container for chunk info).
+            List of  objects (lightweight container for chunk info).
         """
         # res = self.pinecone_index.query(
         #     vector= self.query,
@@ -66,4 +66,7 @@ class Retriever:
         results = self.hybrid_retriever.invoke(self.query)
         for doc in results:
             print(f"printing Doc content : {doc.page_content}")
+        if self.llm:
+            reranker = Reranker(self.llm, results, self.query)
+            results = reranker.rerank_documents()
         return results
