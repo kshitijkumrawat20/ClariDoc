@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from langchain_huggingface import HuggingFaceEmbeddings
 # from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings import OpenAIEmbeddings
+from langchain.chat_models import init_chat_model
+
 class ConfigLoader:
     def __init__(self):
         print(f"Loading config....")
@@ -20,7 +22,7 @@ class ConfigLoader:
     
 
 class ModelLoader(BaseModel):
-    model_provider: Literal["groq", "gemini", "openai","gemini_lite", "huggingface"] = "gemini" 
+    model_provider: Literal["groq", "gemini", "openai","gemini_lite", "huggingface","openrouter"] = "openrouter" 
     config: Optional[ConfigLoader] = Field(default = None, exclude = True) # either the config is ConfigLoader object or None
 
     def model_post_init(self, __context: Any)->None:
@@ -65,10 +67,22 @@ class ModelLoader(BaseModel):
             api_key = os.getenv("OPENAI_API_KEY")
             model_name = self.config["embedding_model"]["openai"]["model_name"]
             llm = OpenAIEmbeddings(model=model_name, api_key = api_key)
+        elif self.model_provider == "openrouter":
+            load_dotenv()
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            model_name = self.config["llm"]["openrouter"]["model_name"]
+            llm = init_chat_model(
+                model="google/gemma-3-27b-it:free",
+                model_provider="openai",
+                base_url="https://openrouter.ai/api/v1",
+                api_key=api_key
+            )
         elif self.model_provider =="huggingface":
             load_dotenv()
             print("Loading model from huggingface:")
+            print("HF_TOKEN in env:", os.getenv("HF_TOKEN"))
             api_key = os.getenv("HF_TOKEN")
+            print(f"HF api key {api_key}")
             os.environ["HF_TOKEN"] = api_key  # Ensure the token is set in the environment
             model_name = self.config["embedding_model"]["huggingface"]["model_name"]
             llm = HuggingFaceEmbeddings(model=model_name)

@@ -9,14 +9,14 @@ class CommonMetaData(BaseModel):
     jurisdiction: Optional[List[str]] = Field(
     default=None, description="Applicable jurisdictions/regions/countries"
     )
-    effective_date: Optional[List[str]] = Field(None, description="Date from which the document is effective")
-    expiry_date: Optional[List[str]] = Field(None, description="Date until which the document is valid")
+    # effective_date: Optional[List[str]] = Field(None, description="Date from which the document is effective")
+    # expiry_date: Optional[List[str]] = Field(None, description="Date until which the document is valid")
     parties: Optional[List[str]] = Field(None, description="Involved parties (e.g., employer/employee, insurer/insured)")
     # obligations: Optional[List[str]] = Field(
     #     default=None,
     #     description="List of short, normalized obligation keywords (2–5 words each, no full sentences)"
     # )
-    penalties: Optional[List[str]] = Field(None, description="Penalties/non-compliance consequences")
+    # penalties: Optional[List[str]] = Field(None, description="Penalties/non-compliance consequences")
     # notes: Optional[List[str]] = Field(None, description="Freeform additional metadata")
     # added_new_keyword: bool = False
     added_new_keyword: bool = True

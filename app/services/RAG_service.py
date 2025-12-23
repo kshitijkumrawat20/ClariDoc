@@ -42,8 +42,8 @@ class RAGService:
 
     def _init_models(self):
         """Initialize LLM and embedding Models"""
-        print("[RAGService] Loading LLM model (gemini)...")
-        self.model_loader = ModelLoader(model_provider="gemini")
+        print("[RAGService] Loading LLM model (openrouter)...")
+        self.model_loader = ModelLoader(model_provider="openrouter")
         self.llm = self.model_loader.load_llm()
         print("[RAGService] LLM model loaded.")
         print("[RAGService] Loading embedding model (huggingface)...")
