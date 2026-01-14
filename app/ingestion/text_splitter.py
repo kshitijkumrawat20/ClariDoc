@@ -70,7 +70,19 @@ class splitting_text:
                 # PERFORMANCE: Option to skip metadata extraction per page for speed
                 if not extract_metadata_per_page:
                     # Reuse first page metadata (much faster, ~70% speedup)
-                    Document_metadata = first_page_metadata
+                    # Safety check: Ensure first_page_metadata is available
+                    if first_page_metadata is not None:
+                        Document_metadata = first_page_metadata
+                    else:
+                        # Fallback: Extract metadata if first page failed
+                        if cached_keywords is None:
+                            with open(self.Keywordsfile_path, "r") as f:
+                                cached_keywords = json.load(f)
+                        Document_metadata = self.metadata_extractor.extractMetadata(
+                            document=page, 
+                            known_keywords=cached_keywords, 
+                            metadata_class=self.documentTypeSchema
+                        )
                 else:
                     # PERFORMANCE: Use cached_keywords instead of reading from file every time
                     if cached_keywords is None:
@@ -82,8 +94,8 @@ class splitting_text:
                     # check if there is new keyword is added or not during metadata extraction if yes then normalise(convert to dict) and then add new values into the keys exist
                     if Document_metadata.added_new_keyword:
                         new_data = self.metadata_services.normalize_dict_to_lists(
-                        Document_metadata.model_dump(exclude_none= True)
-                    )
+                            Document_metadata.model_dump(exclude_none=True)
+                        )
                         print(f"processing keywords update for page {i}")
                         new_data = MetadataService.keyword_sementic_check(new_data,cached_keywords,embedding_model = self.embedding_model)
                         

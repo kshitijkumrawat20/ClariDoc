@@ -5,6 +5,8 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from typing import Type
 from pydantic import BaseModel
+from threading import Lock
+
 # wrap parser with fixer once
 # pydantic_parser = PydanticOutputParser(pydantic_object=InsuranceMetadata)
 # fixing_parser = OutputFixingParser.from_llm(llm=llm, parser=pydantic_parser) 
@@ -15,12 +17,19 @@ class MetadataExtractor:
         self.llm = llm
         # PERFORMANCE: Cache schema serialization to avoid repeated JSON dumps
         self._schema_cache = {}
+        self._cache_lock = Lock()  # Thread-safe cache access
 
     def _get_cached_schema(self, metadata_class: Type[BaseModel]) -> str:
-        """Get cached JSON schema or compute and cache it"""
+        """Get cached JSON schema or compute and cache it (thread-safe)"""
         class_name = metadata_class.__name__
         if class_name not in self._schema_cache:
-            self._schema_cache[class_name] = json.dumps(metadata_class.model_json_schema(), indent=2)
+            with self._cache_lock:
+                # Double-check pattern for thread safety
+                if class_name not in self._schema_cache:
+                    self._schema_cache[class_name] = json.dumps(
+                        metadata_class.model_json_schema(), 
+                        indent=2
+                    )
         return self._schema_cache[class_name]
 
     def extractMetadata_query(self, metadata_class : Type[BaseModel],document: Document, known_keywords: dict) -> BaseModel:
