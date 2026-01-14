@@ -11,8 +11,7 @@ from langchain_core.documents import Document
 import json
 from langchain_community.retrievers import BM25Retriever
 from threading import Lock
-from functools import lru_cache
-import hashlib
+from collections import OrderedDict
 
 # Setup logger
 logger = setup_logger(__name__)
@@ -62,8 +61,9 @@ class RAGService:
         self.namespace = None
         self.retriever = None
         self.metadataservice = MetadataService()
-        # PERFORMANCE: Add embedding cache for frequently asked queries
-        self._embedding_cache = {}
+        # PERFORMANCE: Add LRU cache for frequently asked queries (proper OrderedDict-based LRU)
+        self._embedding_cache = OrderedDict()
+        self._cache_max_size = 50
         logger.info("RAG service initialization complete")
 
     def _init_models(self):
@@ -118,20 +118,22 @@ class RAGService:
         logger.info("Creating query embedding...")
         self.query = query
         
-        # PERFORMANCE: Check cache first before computing embedding
-        query_hash = hashlib.md5(query.encode()).hexdigest()
-        if query_hash in self._embedding_cache:
-            logger.debug("Using cached query embedding")
-            self.query_embedding = self._embedding_cache[query_hash]
+        # PERFORMANCE: Check LRU cache first before computing embedding
+        # Using query as key directly (no hash needed for cache lookup)
+        if query in self._embedding_cache:
+            logger.debug("Using cached query embedding (LRU cache hit)")
+            # Move to end to mark as recently used (LRU)
+            self._embedding_cache.move_to_end(query)
+            self.query_embedding = self._embedding_cache[query]
         else:
             self.query_embedder = QueryEmbedding(query=query, embedding_model=self.embedding_model)
             self.query_embedding = self.query_embedder.get_embedding()
-            # Cache with size limit (keep last 50 queries)
-            if len(self._embedding_cache) > 50:
-                # Remove oldest entry
-                self._embedding_cache.pop(next(iter(self._embedding_cache)))
-            self._embedding_cache[query_hash] = self.query_embedding
-            logger.debug(f"Query embedding cached")
+            # Add to cache with proper LRU eviction
+            self._embedding_cache[query] = self.query_embedding
+            if len(self._embedding_cache) > self._cache_max_size:
+                # Remove least recently used (first item in OrderedDict)
+                self._embedding_cache.popitem(last=False)
+            logger.debug(f"Query embedding cached (cache size: {len(self._embedding_cache)})")
         logger.debug(f"Query embedding shape: {len(self.query_embedding) if hasattr(self.query_embedding, '__len__') else 'N/A'}")
         langchain_doc = Document(page_content=query)
         logger.info("Extracting metadata for the query...")

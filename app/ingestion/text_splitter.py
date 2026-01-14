@@ -31,7 +31,7 @@ class splitting_text:
         splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
         
         # PERFORMANCE: Cache known_keywords in memory to avoid repeated file I/O
-        known_keywords = None
+        cached_keywords = None
         keywords_updated = False
         
         for i, page in enumerate(doc): 
@@ -56,15 +56,15 @@ class splitting_text:
 
                 with open(output_path, "w") as f:
                     json.dump(normalized, f, indent=4)
-                known_keywords = normalized  # Cache in memory
+                cached_keywords = normalized  # Cache in memory
 
             else:
-                # PERFORMANCE: Use cached known_keywords instead of reading from file every time
-                if known_keywords is None:
+                # PERFORMANCE: Use cached_keywords instead of reading from file every time
+                if cached_keywords is None:
                     with open(self.Keywordsfile_path, "r") as f:
-                        known_keywords = json.load(f)
+                        cached_keywords = json.load(f)
 
-                Document_metadata = self.metadata_extractor.extractMetadata(document=page, known_keywords=known_keywords, metadata_class=self.documentTypeSchema)
+                Document_metadata = self.metadata_extractor.extractMetadata(document=page, known_keywords=cached_keywords, metadata_class=self.documentTypeSchema)
 
                 # check if there is new keyword is added or not during metadata extraction if yes then normalise(convert to dict) and then add new values into the keys exist
                 if Document_metadata.added_new_keyword:
@@ -72,11 +72,11 @@ class splitting_text:
                     Document_metadata.model_dump(exclude_none= True)
                 )
                     print(f"processing keywords update for page {i}")
-                    new_data = MetadataService.keyword_sementic_check(new_data,known_keywords,embedding_model = self.embedding_model)
+                    new_data = MetadataService.keyword_sementic_check(new_data,cached_keywords,embedding_model = self.embedding_model)
                     
                     for key,vals in new_data.items():
                         if isinstance(vals,list):
-                            known_keywords[key] = list(set(known_keywords.get(key,[]) + vals))  #get the existing key and add vals and convert into set then list and update the file.
+                            cached_keywords[key] = list(set(cached_keywords.get(key,[]) + vals))  #get the existing key and add vals and convert into set then list and update the file.
                     keywords_updated = True  # Mark for batch write
 
             # print(f"Document_metadata type: {type(Document_metadata)}")
@@ -103,9 +103,9 @@ class splitting_text:
                 all_chunks.extend(chunks)
 
         # PERFORMANCE: Batch write keywords only once at the end if updated
-        if keywords_updated and known_keywords is not None:
+        if keywords_updated and cached_keywords is not None:
             with open(self.Keywordsfile_path, "w") as f:
-                json.dump(known_keywords, f, indent=4)
+                json.dump(cached_keywords, f, indent=4)
 
         return all_chunks
     
