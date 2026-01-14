@@ -71,9 +71,8 @@ class ModelLoader(BaseModel):
             )
         elif self.model_provider =="huggingface":
             api_key = os.getenv("HF_TOKEN")
-            if api_key:
-                os.environ["HF_TOKEN"] = api_key  # Ensure the token is set in the environment
             model_name = self.config["embedding_model"]["huggingface"]["model_name"]
+            # Pass token directly to model if needed, avoid modifying os.environ
             llm = HuggingFaceEmbeddings(model=model_name)
         else: 
             logger.error(f"Unsupported model provider: {self.model_provider}")

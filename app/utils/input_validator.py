@@ -6,6 +6,22 @@ from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+# Compile regex patterns once at module level for better performance
+UUID_PATTERN = re.compile(
+    r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$', 
+    re.IGNORECASE
+)
+
+URL_PATTERN = re.compile(
+    r'^https?://'  # http:// or https://
+    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain
+    r'localhost|'  # localhost
+    r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+    r'(?::\d+)?'  # optional port
+    r'(?:/?|[/?]\S+)$', 
+    re.IGNORECASE
+)
+
 
 def sanitize_filename(filename: str) -> str:
     """
@@ -97,10 +113,8 @@ def validate_session_id(session_id: str) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    # Session IDs should be UUID4 format (36 characters with hyphens)
-    uuid_pattern = re.compile(r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$', re.IGNORECASE)
-    
-    is_valid = bool(uuid_pattern.match(session_id))
+    # Use pre-compiled pattern from module level
+    is_valid = bool(UUID_PATTERN.match(session_id))
     
     if not is_valid:
         logger.warning(f"Invalid session ID format: {session_id}")
@@ -118,16 +132,8 @@ def validate_url(url: str) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    # Basic URL validation (http/https only)
-    url_pattern = re.compile(
-        r'^https?://'  # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain
-        r'localhost|'  # localhost
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
-        r'(?::\d+)?'  # optional port
-        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-    
-    is_valid = bool(url_pattern.match(url))
+    # Use pre-compiled pattern from module level
+    is_valid = bool(URL_PATTERN.match(url))
     
     if not is_valid:
         logger.warning(f"Invalid URL format: {url}")

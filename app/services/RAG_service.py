@@ -10,20 +10,39 @@ from app.utils.logger import setup_logger
 from langchain_core.documents import Document
 import json
 from langchain_community.retrievers import BM25Retriever
+from threading import Lock
 
 # Setup logger
 logger = setup_logger(__name__)
 
-# Global model instances (loaded once)
-_embedding_model = None
 
-def get_models():
-    global _embedding_model
-    if _embedding_model is None:
-        logger.info("Loading models (one-time initialization)...")
-        embedding_loader = ModelLoader(model_provider="huggingface")
-        _embedding_model = embedding_loader.load_llm()
-    return _embedding_model
+class EmbeddingModelSingleton:
+    """Thread-safe singleton for embedding model caching"""
+    _instance = None
+    _lock = Lock()
+    _embedding_model = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def get_model(self):
+        """Get or load the embedding model (thread-safe)"""
+        if self._embedding_model is None:
+            with self._lock:
+                if self._embedding_model is None:
+                    logger.info("Loading embedding model (one-time initialization)...")
+                    embedding_loader = ModelLoader(model_provider="huggingface")
+                    self._embedding_model = embedding_loader.load_llm()
+        return self._embedding_model
+
+
+# Singleton instance for model access
+_model_singleton = EmbeddingModelSingleton()
+
 
 class RAGService: 
     def __init__(self):
@@ -50,7 +69,7 @@ class RAGService:
         self.llm = self.model_loader.load_llm()
         logger.info("LLM model loaded successfully")
         logger.info("Loading embedding model (huggingface)...")
-        self.embedding_model = get_models()
+        self.embedding_model = _model_singleton.get_model()
         logger.info("Embedding model loaded successfully")
 
     def load_and_split_document(self, type:str, path:str= None, url:str = None):
