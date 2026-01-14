@@ -20,11 +20,23 @@ A comprehensive optimization effort was undertaken to improve performance, secur
   - `app/embedding/vectore_store.py`
 
 #### Model Loading Optimization
-- **Problem**: Embedding model was loaded multiple times
-- **Solution**: Implemented singleton pattern with global caching in `get_models()`
-- **Impact**: Prevents redundant model loading, saves memory and initialization time
+- **Problem**: Embedding model was loaded multiple times, global variable usage
+- **Solution**: Implemented thread-safe singleton pattern with `EmbeddingModelSingleton` class
+  - Thread-safe with Lock for concurrent access
+  - Proper singleton implementation (better than global variables)
+  - Lazy initialization with double-checked locking
+- **Impact**: Prevents redundant model loading, thread-safe, saves memory and initialization time
 - **Files Modified**:
   - `app/services/RAG_service.py`
+
+#### Regex Performance Optimization
+- **Problem**: Regex patterns compiled on every function call
+- **Solution**: Pre-compile UUID and URL patterns at module level
+  - `UUID_PATTERN` compiled once for session validation
+  - `URL_PATTERN` compiled once for URL validation
+- **Impact**: Significant performance improvement for repeated validations
+- **Files Modified**:
+  - `app/utils/input_validator.py`
 
 #### Code Cleanup
 - **Problem**: Extensive commented-out code in vector_store.py
@@ -110,6 +122,13 @@ A comprehensive optimization effort was undertaken to improve performance, secur
 - **Files Modified**:
   - `app/api/v1/routes.py`
 
+#### Thread Safety
+- **Problem**: Runtime modification of `os.environ` can cause race conditions
+- **Solution**: Removed `os.environ["HF_TOKEN"]` modification, rely on initial environment
+- **Impact**: Thread-safe operation, prevents unpredictable behavior in multi-threaded environments
+- **Files Modified**:
+  - `app/utils/model_loader.py`
+
 ### 5. Resource Management ✅
 
 #### .gitignore Improvements
@@ -139,6 +158,9 @@ A comprehensive optimization effort was undertaken to improve performance, secur
 - Clean code: Removed all unnecessary comments
 - Full input validation: 6 validation functions
 - Environment validation: 3 validation utilities
+- Thread-safe singleton: Proper implementation with Lock
+- Pre-compiled regex patterns: 2 patterns optimized
+- Thread-safe environment: No runtime os.environ modification
 
 ## Code Quality Improvements
 
@@ -155,11 +177,14 @@ A comprehensive optimization effort was undertaken to improve performance, secur
 - ✅ Session ID validation
 - ✅ Error message sanitization
 - ✅ Environment variable validation
+- ✅ Thread-safe operations (no race conditions)
 
 ### Performance
 - ✅ Singleton pattern for model loading
 - ✅ Reduced redundant I/O operations
 - ✅ Cleaner import structure
+- ✅ Pre-compiled regex patterns
+- ✅ Thread-safe singleton with double-checked locking
 
 ## Files Modified
 
