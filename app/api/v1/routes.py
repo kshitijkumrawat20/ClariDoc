@@ -106,7 +106,7 @@ async def upload_document(
         if 'temp_file_path' in locals():
             try:
                 os.unlink(tmp_file_path)
-            except:
+            except OSError:
                 pass
         raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
 

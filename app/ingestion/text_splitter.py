@@ -30,14 +30,11 @@ class splitting_text:
         all_chunks = []
         splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
         for i, page in enumerate(doc): 
-                    # reset per page
+            # reset per page
             try:
                 text = page.get_text()
-            except:
+            except AttributeError:
                 text = page.page_content
-            # print(type(page))
-                        
-                    # text = self._clean_text(text)
 
             
 

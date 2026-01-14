@@ -1,20 +1,21 @@
 # from config_loader import 
 import os 
-from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import Literal, Optional,Any
 from app.utils.config_loader import load_config
+from app.utils.logger import setup_logger
 from langchain_groq import ChatGroq 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from dotenv import load_dotenv
 from langchain_huggingface import HuggingFaceEmbeddings
 # from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.chat_models import init_chat_model
 
+logger = setup_logger(__name__)
+
 class ConfigLoader:
     def __init__(self):
-        print(f"Loading config....")
+        logger.debug("Loading configuration...")
         self.config = load_config()
 
     def __getitem__(self,key):## This method allows you to access config values using dictionary-like syntax
@@ -35,17 +36,13 @@ class ModelLoader(BaseModel):
         """
         Load and return the LLM model
         """
-        print("LLM loading...")
-        print("Loading model from provider: ")
+        logger.info(f"Loading LLM model from provider: {self.model_provider}")
         if self.model_provider == "groq":
-            print("Loading model from GROQ:")
             groq_api_key = os.getenv("GROQ_API_KEY")
             model_name = self.config["llm"]["groq"]["model_name"]
             llm = ChatGroq(model = model_name, api_key = groq_api_key)
             
         elif self.model_provider =="gemini":
-            print("Loading model from gemini:")
-            load_dotenv()
             gemini_api_key = os.getenv("GEMINI_API_KEY")
             model_name = self.config["llm"]["gemini"]["model_name"]
             llm = ChatGoogleGenerativeAI(
@@ -53,8 +50,6 @@ class ModelLoader(BaseModel):
                 google_api_key= gemini_api_key
             )
         elif self.model_provider =="gemini_lite":
-            print("Loading model from gemini-flash-lite:")
-            load_dotenv()
             gemini_api_key = os.getenv("GEMINI_API_KEY")
             model_name = self.config["llm"]["gemini_lite"]["model_name"]
             llm = ChatGoogleGenerativeAI(
@@ -62,13 +57,10 @@ class ModelLoader(BaseModel):
                 google_api_key= gemini_api_key
             )
         elif self.model_provider =="openai":
-            load_dotenv()
-            print("Loading model from openai:")
             api_key = os.getenv("OPENAI_API_KEY")
             model_name = self.config["embedding_model"]["openai"]["model_name"]
             llm = OpenAIEmbeddings(model=model_name, api_key = api_key)
         elif self.model_provider == "openrouter":
-            load_dotenv()
             api_key = os.getenv("OPENROUTER_API_KEY")
             model_name = self.config["llm"]["openrouter"]["model_name"]
             llm = init_chat_model(
@@ -78,16 +70,16 @@ class ModelLoader(BaseModel):
                 api_key=api_key
             )
         elif self.model_provider =="huggingface":
-            load_dotenv()
-            print("Loading model from huggingface:")
-            print("HF_TOKEN in env:", os.getenv("HF_TOKEN"))
             api_key = os.getenv("HF_TOKEN")
-            print(f"HF api key {api_key}")
-            os.environ["HF_TOKEN"] = api_key  # Ensure the token is set in the environment
+            if api_key:
+                os.environ["HF_TOKEN"] = api_key  # Ensure the token is set in the environment
             model_name = self.config["embedding_model"]["huggingface"]["model_name"]
             llm = HuggingFaceEmbeddings(model=model_name)
         else: 
+            logger.error(f"Unsupported model provider: {self.model_provider}")
             raise ValueError(f"Unsupported model provider: {self.model_provider}")
+        
+        logger.info(f"Successfully loaded {self.model_provider} model")
         return llm
 
 
