@@ -13,11 +13,21 @@ from pydantic import BaseModel
 class MetadataExtractor:
     def __init__(self, llm = None):
         self.llm = llm
+        # PERFORMANCE: Cache schema serialization to avoid repeated JSON dumps
+        self._schema_cache = {}
+
+    def _get_cached_schema(self, metadata_class: Type[BaseModel]) -> str:
+        """Get cached JSON schema or compute and cache it"""
+        class_name = metadata_class.__name__
+        if class_name not in self._schema_cache:
+            self._schema_cache[class_name] = json.dumps(metadata_class.model_json_schema(), indent=2)
+        return self._schema_cache[class_name]
 
     def extractMetadata_query(self, metadata_class : Type[BaseModel],document: Document, known_keywords: dict) -> BaseModel:
         parser = PydanticOutputParser(pydantic_object=metadata_class)
 
-        schema_str = json.dumps(metadata_class.model_json_schema(), indent=2)
+        # PERFORMANCE: Use cached schema instead of recomputing
+        schema_str = self._get_cached_schema(metadata_class)
         keywords_str = json.dumps(known_keywords, indent=2)
 
         prompt = ChatPromptTemplate.from_messages([
@@ -64,7 +74,8 @@ class MetadataExtractor:
     def extractMetadata(self, metadata_class : Type[BaseModel], document: Document, known_keywords: dict = None) -> BaseModel:
         parser = PydanticOutputParser(pydantic_object=metadata_class)
 
-        schema_str = json.dumps(metadata_class.model_json_schema(), indent=2)
+        # PERFORMANCE: Use cached schema instead of recomputing
+        schema_str = self._get_cached_schema(metadata_class)
         # keywords_str = json.dumps(known_keywords, indent=2)
 
         prompt = ChatPromptTemplate.from_messages([
@@ -99,7 +110,8 @@ class MetadataExtractor:
         # Existing Keywords:
             # {keywords}
         
-        chain = prompt | self.llm | parser
+        # PERFORMANCE: Use lower temperature for faster, more deterministic responses
+        chain = prompt | self.llm.bind(temperature=0.1) | parser
 
         try:
             result = chain.invoke({
