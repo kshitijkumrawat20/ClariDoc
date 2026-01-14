@@ -17,7 +17,7 @@ class Session:
         self.last_activity = datetime.now()
 
     def is_expired(self, timeout_minutes: int = 60) -> bool:
-        return datetime.now() - self.last_activity > timedelta()
+        return datetime.now() - self.last_activity > timedelta(minutes=timeout_minutes)
 
 class SessionManager:
     def __init__(self):

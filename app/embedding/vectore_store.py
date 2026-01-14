@@ -1,22 +1,20 @@
 import os
-from dotenv import load_dotenv
 from pinecone import Pinecone
 from pinecone import ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
 from datetime import datetime
 from uuid import uuid4
+from app.utils.env_validator import get_env_var
+
 class VectorStore:
     def __init__(self, text_chunks, embedding_model):
         self.text_chunks = text_chunks
         self.current_time = datetime.now()
         self.embedding_model = embedding_model
-        # self.index, self.namespace, self.retriever = self.create_vectorestore()
 
     def create_vectorestore(self):
-        load_dotenv()
-        pinecone_key = os.getenv("PINECONE_API_KEY")
-        pc = Pinecone(api_key=pinecone_key)
-        # pc._vector_api.api_client.pool_threads = 1  
+        pinecone_key = get_env_var("PINECONE_API_KEY", required=True)
+        pc = Pinecone(api_key=pinecone_key)  
         time_string = self.current_time.strftime("%Y-%m-%d-%H-%M")
         index_name = "rag-project"
         namespace = f"rag-project{time_string}"
@@ -29,22 +27,13 @@ class VectorStore:
             )
 
         index = pc.Index(index_name)
-        # model_loader = ModelLoader(model_provider="openai")
-        # embedding_model = model_loader.load_llm()
-        uuids = [str(uuid4()) for _ in range(len(self.text_chunks)) ]
-        # vector_store = PineconeVectorStore.from_documents(index = index, embedding=self.embedding_model)
-        # name_space = f"hackrx-index{time_string}"
-        # vector_store.add_documents(documents=self.text_chunks, ids = uuids,namespace = name_space )
-        # retriever = vector_store.as_retriever(
-        #     search_type="similarity",
-        #     search_kwargs={"k": 5},
-        # )
-        vector_store = PineconeVectorStore.from_documents(documents=self.text_chunks,index_name=index_name, embedding=self.embedding_model, namespace = namespace)
-        # vector_store.add_documents(documents=docs, ids=uuids)
-        # retriever = vector_store.as_retriever(
-        #             search_type="similarity",
-        #             search_kwargs={"k": 5,"namespace": namespace}
-        #         )
+        uuids = [str(uuid4()) for _ in range(len(self.text_chunks))]
+        vector_store = PineconeVectorStore.from_documents(
+            documents=self.text_chunks,
+            index_name=index_name, 
+            embedding=self.embedding_model, 
+            namespace=namespace
+        )
 
         return index, namespace, vector_store
 

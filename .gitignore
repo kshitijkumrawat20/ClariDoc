@@ -17,3 +17,20 @@ hackrx_rag_app/
 hackrx_rag_app/
 SNIPPET.md
 progress.md
+
+# Uploaded files (exclude from version control)
+app/uploads/*.pdf
+app/uploads/*.docx
+app/uploads/*.doc
+
+# Data files
+app/data/*.json
+
+# Database files
+app/database/*.db
+app/database/*.db-journal
+
+# Cache directories
+.cache/
+huggingface_cache/
+vector_store/
