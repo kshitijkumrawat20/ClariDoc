@@ -4,6 +4,7 @@ from pinecone import ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
 from datetime import datetime
 from uuid import uuid4
+from app.utils.env_validator import get_env_var
 
 class VectorStore:
     def __init__(self, text_chunks, embedding_model):
@@ -12,7 +13,7 @@ class VectorStore:
         self.embedding_model = embedding_model
 
     def create_vectorestore(self):
-        pinecone_key = os.getenv("PINECONE_API_KEY")
+        pinecone_key = get_env_var("PINECONE_API_KEY", required=True)
         pc = Pinecone(api_key=pinecone_key)  
         time_string = self.current_time.strftime("%Y-%m-%d-%H-%M")
         index_name = "rag-project"

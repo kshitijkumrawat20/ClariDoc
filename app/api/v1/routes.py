@@ -7,24 +7,30 @@ from pathlib import Path
 from app.core.session_manager import SessionManager, Session, session_manager
 from app.services.RAG_service import RAGService
 from app.schemas.request_models import QueryRequest
-from app.schemas.response_models import SessionResponse, QueryResponse,UploadResponse
+from app.schemas.response_models import SessionResponse, QueryResponse, UploadResponse, SourceDocument
 from app.config.config import get_settings
-from app.schemas.response_models import SessionResponse, QueryResponse, UploadResponse,SourceDocument
+from app.utils.input_validator import sanitize_filename, validate_session_id, sanitize_query
+from app.utils.logger import setup_logger
 
 router = APIRouter()
+logger = setup_logger(__name__)
 
 def get_session(session_id:str) -> Session:
-    """Dependency to get and validare session"""
+    """Dependency to get and validate session"""
+    # Validate session ID format
+    if not validate_session_id(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+    
     session = session_manager.get_session(session_id=session_id)
     if not session: 
-        raise HTTPException(status_code=404, detail="Session not found or expired"
-        )
+        raise HTTPException(status_code=404, detail="Session not found or expired")
     return session
 
 @router.post("/session", response_model=SessionResponse)
 async def create_session():
     """Create a new session for document processing"""
     session_id = session_manager.create_session()
+    logger.info(f"Created new session: {session_id}")
     return SessionResponse(
         session_id=session_id,
         message="Session created successfully"
@@ -33,7 +39,11 @@ async def create_session():
 @router.delete("/session/{session_id}")
 async def delete_session(session_id: str):
     """Delete a session"""
+    if not validate_session_id(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+    
     session_manager.delete_session(session_id)
+    logger.info(f"Deleted session: {session_id}")
     return {"message": "Session deleted successfully"}
 
 @router.post("/upload/{session_id}", response_model=UploadResponse)
@@ -45,12 +55,16 @@ async def upload_document(
 ):
     """Upload and process a document"""
     settings = get_settings()
+    
+    # Sanitize filename
+    safe_filename = sanitize_filename(file.filename)
+    
     # validate file type
-    file_exension = Path(file.filename).suffix.lower()
-    if file_exension not in settings.allowed_file_types:
+    file_extension = Path(safe_filename).suffix.lower()
+    if file_extension not in settings.allowed_file_types:
         raise HTTPException(
-            status_code=404,
-            detail = f"File type {file_exension} is not allowed"
+            status_code=400,
+            detail = f"File type {file_extension} is not allowed"
         )
      #Validate file size
     if file.size > settings.max_file_size:
@@ -108,7 +122,8 @@ async def upload_document(
                 os.unlink(tmp_file_path)
             except OSError:
                 pass
-        raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
+        logger.error(f"Error processing document upload for session {session_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error processing document")
 
 @router.post("/query/{session_id}", response_model = QueryResponse)
 async def query_document(
@@ -119,18 +134,27 @@ async def query_document(
     """Query the uploaded Document"""
     if not session.document_uploaded or not session.vector_store_created:
         raise HTTPException(
-            status_code= 400,
-            detail="No docuement uploaded or processed for this session"
+            status_code=400,
+            detail="No document uploaded or processed for this session"
         )
+    
+    # Sanitize query input
+    sanitized_query = sanitize_query(query_request.query)
+    if not sanitized_query:
+        raise HTTPException(
+            status_code=400,
+            detail="Query cannot be empty"
+        )
+    
     try: 
-        # create query embedding
-        session.rag_service.create_query_embedding(query_request.query)
+        # create query embedding (use sanitized query)
+        session.rag_service.create_query_embedding(sanitized_query)
 
         # retrive relevant docs 
-        session.rag_service.retrive_documents(query_request.query)
+        session.rag_service.retrive_documents(sanitized_query)
 
         # generate answer
-        answer = session.rag_service.answer_query(query_request.query)
+        answer = session.rag_service.answer_query(sanitized_query)
         sources = []
         if hasattr(session.rag_service, 'result') and session.rag_service.result:
             matches = session.rag_service.result
@@ -148,13 +172,14 @@ async def query_document(
                         ))
         return QueryResponse(
             session_id=session_id,
-            query=query_request.query,
+            query=sanitized_query,
             answer=answer,
             message="Query processed successfully"
         )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+        logger.error(f"Error processing query for session {session_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error processing query")
 
 @router.get("/session/{session_id}/status")
 async def get_session_status(
