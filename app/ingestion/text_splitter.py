@@ -29,6 +29,11 @@ class splitting_text:
 
         all_chunks = []
         splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
+        
+        # PERFORMANCE: Cache known_keywords in memory to avoid repeated file I/O
+        known_keywords = None
+        keywords_updated = False
+        
         for i, page in enumerate(doc): 
             # reset per page
             try:
@@ -51,12 +56,13 @@ class splitting_text:
 
                 with open(output_path, "w") as f:
                     json.dump(normalized, f, indent=4)
-                known_keywords = normalized
+                known_keywords = normalized  # Cache in memory
 
             else:
-                # Next pages → load JSON and enforce consistency
-                with open(self.Keywordsfile_path, "r") as f:
-                    known_keywords = json.load(f)
+                # PERFORMANCE: Use cached known_keywords instead of reading from file every time
+                if known_keywords is None:
+                    with open(self.Keywordsfile_path, "r") as f:
+                        known_keywords = json.load(f)
 
                 Document_metadata = self.metadata_extractor.extractMetadata(document=page, known_keywords=known_keywords, metadata_class=self.documentTypeSchema)
 
@@ -71,8 +77,7 @@ class splitting_text:
                     for key,vals in new_data.items():
                         if isinstance(vals,list):
                             known_keywords[key] = list(set(known_keywords.get(key,[]) + vals))  #get the existing key and add vals and convert into set then list and update the file.
-                    with open(self.Keywordsfile_path, "w") as f:
-                        json.dump(known_keywords, f, indent=4)
+                    keywords_updated = True  # Mark for batch write
 
             # print(f"Document_metadata type: {type(Document_metadata)}")
             extracted_metadata = Document_metadata.model_dump(exclude_none=True)
@@ -97,6 +102,10 @@ class splitting_text:
                 print(type(f"Type of chunks is: {chunks}"))
                 all_chunks.extend(chunks)
 
+        # PERFORMANCE: Batch write keywords only once at the end if updated
+        if keywords_updated and known_keywords is not None:
+            with open(self.Keywordsfile_path, "w") as f:
+                json.dump(known_keywords, f, indent=4)
 
         return all_chunks
     

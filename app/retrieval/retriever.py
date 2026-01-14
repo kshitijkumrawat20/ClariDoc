@@ -12,7 +12,7 @@ class Retriever:
         self.llm = llm  
         self.dense_retriever = self.vector_store.as_retriever(
             search_type="similarity",
-            search_kwargs={"k": 10,"namespace": self.namespace, "filter": self.metadata}
+            search_kwargs={"k": 5,"namespace": self.namespace, "filter": self.metadata}  # Reduced from 10 to 5
         )
         self.hybrid_retriever = EnsembleRetriever(
             retrievers=[self.dense_retriever, sparse_retriever],  # Use .retriever attribute

@@ -158,18 +158,28 @@ async def query_document(
         sources = []
         if hasattr(session.rag_service, 'result') and session.rag_service.result:
             matches = session.rag_service.result
-            for match in matches[:3]:  # Top 3 sources
-                metadata = match.metadata
-                score = session.rag_service.metadataservice.cosine_similarity(vec1=session.rag_service.embedding_model.embed_query(match.page_content), vec2=session.rag_service.embedding_model.embed_query(
-                    session.rag_service.query
-                ))
-                sources.append(SourceDocument(
-                            doc_id=metadata['doc_id'],
-                            page=metadata['page_no'],
-                            text=match.page_content,
-                            score=score,
-                            metadata=metadata
-                        ))
+            # PERFORMANCE: Compute query embedding once and reuse it
+            query_embedding = session.rag_service.query_embedding
+            
+            # PERFORMANCE: Batch compute embeddings for all matches at once
+            match_texts = [match.page_content for match in matches[:3]]
+            if match_texts:
+                match_embeddings = session.rag_service.embedding_model.embed_documents(match_texts)
+                
+                for idx, match in enumerate(matches[:3]):
+                    metadata = match.metadata
+                    # Use pre-computed embeddings instead of calling embed_query twice
+                    score = session.rag_service.metadataservice.cosine_similarity(
+                        vec1=match_embeddings[idx], 
+                        vec2=query_embedding
+                    )
+                    sources.append(SourceDocument(
+                                doc_id=metadata['doc_id'],
+                                page=metadata['page_no'],
+                                text=match.page_content,
+                                score=score,
+                                metadata=metadata
+                            ))
         return QueryResponse(
             session_id=session_id,
             query=sanitized_query,

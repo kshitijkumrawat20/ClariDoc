@@ -11,6 +11,8 @@ from langchain_core.documents import Document
 import json
 from langchain_community.retrievers import BM25Retriever
 from threading import Lock
+from functools import lru_cache
+import hashlib
 
 # Setup logger
 logger = setup_logger(__name__)
@@ -60,6 +62,8 @@ class RAGService:
         self.namespace = None
         self.retriever = None
         self.metadataservice = MetadataService()
+        # PERFORMANCE: Add embedding cache for frequently asked queries
+        self._embedding_cache = {}
         logger.info("RAG service initialization complete")
 
     def _init_models(self):
@@ -113,8 +117,21 @@ class RAGService:
     def create_query_embedding(self, query: str):
         logger.info("Creating query embedding...")
         self.query = query
-        self.query_embedder = QueryEmbedding(query=query, embedding_model=self.embedding_model)
-        self.query_embedding = self.query_embedder.get_embedding()
+        
+        # PERFORMANCE: Check cache first before computing embedding
+        query_hash = hashlib.md5(query.encode()).hexdigest()
+        if query_hash in self._embedding_cache:
+            logger.debug("Using cached query embedding")
+            self.query_embedding = self._embedding_cache[query_hash]
+        else:
+            self.query_embedder = QueryEmbedding(query=query, embedding_model=self.embedding_model)
+            self.query_embedding = self.query_embedder.get_embedding()
+            # Cache with size limit (keep last 50 queries)
+            if len(self._embedding_cache) > 50:
+                # Remove oldest entry
+                self._embedding_cache.pop(next(iter(self._embedding_cache)))
+            self._embedding_cache[query_hash] = self.query_embedding
+            logger.debug(f"Query embedding cached")
         logger.debug(f"Query embedding shape: {len(self.query_embedding) if hasattr(self.query_embedding, '__len__') else 'N/A'}")
         langchain_doc = Document(page_content=query)
         logger.info("Extracting metadata for the query...")
